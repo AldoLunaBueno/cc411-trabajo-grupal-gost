@@ -23,7 +23,7 @@ public class Main {
         Point clavePublica = obtenerClavePublica();
 
         // 2. Instanciación de los módulos (Inyección de dependencias manual)
-        HashService hashService = new Streebog();           // Benja
+        HashService hashService = new Streebog(256);           // Benja
         SignatureGenerator signer = new GostSigner();       // Jharvy
         SignatureVerifier verifier = new GostVerifier();    // Melissa
 

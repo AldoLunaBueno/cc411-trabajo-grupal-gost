@@ -2,6 +2,8 @@ package uni.modules.emisor;
 
 import java.math.BigInteger;
 
+import uni.model.CurveMath;
+import uni.model.Point;
 import uni.model.DomainParameters;
 import uni.model.Signature;
 
@@ -9,7 +11,7 @@ import uni.model.Signature;
 public class GostSigner implements SignatureGenerator {
 
     @Override
-    public Signature sign(BigInteger e, BigInteger d, DomainParameters params) {
+    public Signature sign(BigInteger e, BigInteger k, BigInteger d, DomainParameters params) {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'sign'");
     }
