@@ -2,6 +2,7 @@ package uni.modules.receptor;
 
 import java.math.BigInteger;
 
+import uni.model.CurveMath;
 import uni.model.DomainParameters;
 import uni.model.Point;
 import uni.model.Signature;
