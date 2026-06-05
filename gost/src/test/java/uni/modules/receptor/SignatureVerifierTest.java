@@ -29,7 +29,7 @@ public class SignatureVerifierTest {
         // 2. Configurar la Clave Pública Q del Ejemplo 1
         Point Q = new Point(
             new BigInteger("7F2B49E270DB6D90D8595BEC458B50C58585BA1D4E9B788F6689DBD8E56FD80B", 16),
-            new BigInteger("26F1B489D6701DD185C8413A977B3CBBAF64D1C593D26627DFFB101A87FF77DA1", 16)
+            new BigInteger("26F1B489D6701DD185C8413A977B3CBBAF64D1C593D26627DFFB101A87FF77DA", 16)
         );
 
         // 3. Configurar el entero 'e' (hash) y la Firma generada (r, s) del Ejemplo 1
@@ -65,7 +65,7 @@ public class SignatureVerifierTest {
         // 2. Configurar la Clave Pública Q del Ejemplo 1
         Point Q = new Point(
             new BigInteger("7F2B49E270DB6D90D8595BEC458B50C58585BA1D4E9B788F6689DBD8E56FD80B", 16),
-            new BigInteger("26F1B489D6701DD185C8413A977B3CBBAF64D1C593D26627DFFB101A87FF77DA1", 16)
+            new BigInteger("26F1B489D6701DD185C8413A977B3CBBAF64D1C593D26627DFFB101A87FF77DA", 16)
         );
 
         // 3. Configurar el entero 'e' (hash) y la Firma generada (r, s) del Ejemplo 1
