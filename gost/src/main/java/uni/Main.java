@@ -21,6 +21,18 @@ public class Main {
         DomainParameters params = configurarParametrosCurva();
         BigInteger clavePrivada = obtenerClavePrivada();
         Point clavePublica = obtenerClavePublica();
+        
+        Point calculada = uni.model.CurveMath.multiply(
+            params.P,
+            clavePrivada,
+            params
+        );
+        System.out.println("Qx fija = " + clavePublica.x.toString(16));
+        System.out.println("Qy fija = " + clavePublica.y.toString(16));
+        System.out.println("Qx calculada = " + calculada.x.toString(16));
+        System.out.println("Qy calculada = " + calculada.y.toString(16));
+
+
 
         // 2. Instanciación de los módulos (Inyección de dependencias manual)
         HashService hashService = new Streebog(256);           // Benja
@@ -60,7 +72,7 @@ public class Main {
     private static Point obtenerClavePublica() {
         return new Point(
             new BigInteger("7F2B49E270DB6D90D8595BEC458B50C58585BA1D4E9B788F6689DBD8E56FD80B", 16),
-            new BigInteger("26F1B489D6701DD185C8413A977B3CBBAF64D1C593D26627DFFB101A87FF77DA1", 16)
+            new BigInteger("26F1B489D6701DD185C8413A977B3CBBAF64D1C593D26627DFFB101A87FF77DA", 16)
         );
     }
 
