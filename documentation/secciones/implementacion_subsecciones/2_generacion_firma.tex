@@ -1,0 +1,65 @@
+\subsection{Generación de la Firma}
+El proceso de obtener una firma digital corresponde al Algoritmo I del estandar
+(sección 6.2). El emisor utiliza su clave privada $d$ y un número aleatorio efímero $k$ para proceesar el mensaje $M$. El resultado es un par $(r, s)$ que constituye la firma digital $\zeta$. La seguridad reside en la dificultad de resolver el problema del logaritmo discreto sobre el grupo de puntos de la curva elíptica: sin conocer $d$ o $k$, es computacionalmente imposible falsificar la firma.
+
+\subsubsection{Pasos del Algoritmo I}
+Sea $P$ el punto base de la curva y $q$ su orden. Para firmar el mensaje $M$, el emisor ejecuta:
+
+\begin{enumerate}
+    \item \textbf{Resumen y reduccion del mensaje.} Se calcula el hash del mensaje $\overline{h} = h(M)$ y se convierte el resultado a un valor entero $\alpha$. Luego, se obtiene $e \equiv \alpha \pmod q$, garantizando que el valor esté dentro del rango del orden del subgrupo.
+    \item \textbf{Selección efímera.} Se genera un número aleatorio o pseudoaleatorio $k$ tal que $0 < k < q$. Este número \textbf{debe} ser secreto y único para cada firma.
+    \item \textbf{Cálculo del punto efímero.} Se computa el punto $C = kP$. Se define $r \equiv x_C \pmod q$. Si $r = 0$, se debe descartar el valor de $k$ y volver al paso 2.
+    \item \textbf{Cálculo de la componentes.} Se computa $s \equiv (rd + ke) \pmod q$. Si $s = 0$, se debe volver al paso 2.
+    \item \textbf{Formación de la firma.} La firma $\zeta$ resulta de la concatenación de los vectores binarios $\bar{r}$ y $\bar{s}$.
+\end{enumerate}
+
+\subsubsection{Fundamento matemático}
+El valor $r$ captura la huella del punto aleatorio $kP$ proyectado sobre la coordenada $x$, mientras que $s$ vincula criptográficamente el mensaje ($e$), la clave privada del emisor ($d$) y el secreto efímero ($k$). Al revelar $(r, s)$, el emisor proporciona pruebas suficientes para que el receptor reconstruya el punto $C$ (mediante el algoritmo de verificación) sin que el emisor revele su clave privada $d$ ni el valor secreto $k$.
+
+\subsubsection{Implementación}
+
+La lógica del emisor se ha encapsulado en la clase \texttt{GostSigner}, que implementa la interfaz \texttt{SignatureGenerator}. Esta estructura permite separar la lógica de generación aleatoria de la lógica determinista.
+
+\begin{lstlisting}[language=Java, caption={Método \texttt{sign} de la clase \texttt{GostSigner}: Implementacion del Algoritmo I.}]
+public Signature sign(BigInteger e, BigInteger d, BigInteger k, DomainParameters params) {
+    BigInteger q = params.q;
+
+    // Paso 1: e ya viene como entero reducido por el hash
+    // Aseguramos que e esté en el rango [0, q)
+    e = e.mod(q);
+    if (e.signum() == 0) e = BigInteger.ONE;
+
+    // Paso 2: C = k * P
+    Point C = CurveMath.multiply(params.P, k, params);
+    if (C == null) throw new IllegalStateException("Punto C es el infinito (multiplicación fallida)");
+
+    // Paso 3: r = x_C mod q
+    BigInteger r = C.x.mod(q);
+    if (r.signum() == 0) throw new IllegalStateException("Valor r == 0; elegir otro k");
+
+    // Paso 4: s = (r*d + k*e) mod q
+    BigInteger s = r.multiply(d).add(k.multiply(e)).mod(q);
+    if (s.signum() == 0) throw new IllegalStateException("Valor s == 0; elegir otro k");
+
+    // Paso 5: retornar la firma (r, s)
+    return new Signature(r, s);
+}
+\end{lstlisting}
+
+\subsubsection{Validación y Manejo de casos limite}
+
+La validación se ha estructurado bajo un enfoque de resiliencia criptográfica. Los estados de error lanzados por el \texttt{GostSigner} (cuando $r=0$ o $s=0$) no representan fallos de software, sino salvaguardas exigidas por el estándar GOST para evitar la fuga de información de la clave privada a través de firmas triviales.
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{@{}ll@{}}
+        \toprule
+        \textbf{Escenario} & \textbf{Acción del sistema} \\ \midrule
+        Firma legítima & Generación de par $(r, s)$ válido \\
+        Resultado trivial ($r=0$ o $s=0$) & Lanzamiento de excepción y reinicio \\ \bottomrule
+    \end{tabular}
+    \caption{Validación de robustez ante estados excepcionales del algoritmo.}
+    \label{tab:tests_generador}
+\end{table}
+
+Para asegurar la correcta integración, se ha desarrollado \texttt{SignatureGeneratorTest}, que utiliza los vectores de prueba estáticos del Apéndice A.1. Al suministrar el valor de $k$ predefinido en el estándar, el método determinista debe producir un par $(r, s)$ bit a bit idéntico al oficial. Esto valida que la multiplicación escalar y la aritmética modular en \texttt{CurveMath} son correctas, eliminando cualquier ambigüedad en el proceso de firma.

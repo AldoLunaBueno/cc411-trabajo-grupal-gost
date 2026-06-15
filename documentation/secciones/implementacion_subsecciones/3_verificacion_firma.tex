@@ -1,0 +1,93 @@
+\subsection{Verificación de la Firma}
+
+La verificación corresponde al Algoritmo II del estándar (sección 6.3). El receptor recibe el mensaje $M$, la firma $\zeta = (r, s)$ y la clave pública $Q$ del emisor, y decide si la firma es legítima sin conocer en ningún momento la clave privada $d$ ni el número efímero $k$ usados al firmar. La operación reconstruye un punto sobre la curva a partir de la firma y lo contrasta con la componente $r$ recibida.
+
+\subsubsection{Pasos del Algoritmo II}
+
+Sea $q$ el orden del subgrupo cíclico generado por $P$ (ver Sección~2). A partir de la firma $(r,s)$, el entero $e$ del hash y la clave pública $Q$, el procedimiento es:
+
+\begin{enumerate}
+    \item \textbf{Validación de rango.} Se verifica que $0 < r < q$ y $0 < s < q$. Si alguna componente cae fuera del intervalo, la firma se rechaza de inmediato; esto descarta firmas malformadas antes de gastar cómputo sobre la curva.
+    \item \textbf{Reducción del hash.} Se calcula $e \equiv \alpha \pmod q$, donde $\alpha$ es el entero asociado al hash del mensaje. Si $e = 0$, se asigna $e = 1$ (el estándar prohíbe el valor nulo porque haría indefinido el paso siguiente).
+    \item \textbf{Inverso modular.} Se obtiene $v \equiv e^{-1} \pmod q$ mediante el Algoritmo Extendido de Euclides. Como $q$ es primo, el inverso existe y es único.
+    \item \textbf{Coeficientes de reconstrucción.} Se calculan $z_1 \equiv s\,v \pmod q$ y $z_2 \equiv -r\,v \pmod q$.
+    \item \textbf{Reconstrucción del punto.} Se computa el punto $C = z_1 P + z_2 Q$ usando la suma y la multiplicación escalar sobre la curva.
+    \item \textbf{Proyección.} Se toma $R \equiv x_C \pmod q$, la abscisa de $C$ reducida módulo $q$.
+    \item \textbf{Decisión.} La firma es válida si y solo si $R = r$.
+\end{enumerate}
+
+\subsubsection{¿Por qué la reconstrucción coincide?}
+
+El núcleo de la verificación es el paso~5. Conviene mostrar por qué el punto reconstruido $C$ es exactamente el mismo punto efímero $kP$ que el emisor calculó al firmar. Partiendo de la ecuación de firma $s \equiv r\,d + k\,e \pmod q$ y de que $Q = d\,P$:
+
+$$
+\begin{aligned}
+C = z_1 P + z_2 Q
+  &= (s\,v)P + (-r\,v)Q \\
+  &= v\,(s\,P - r\,d\,P) \\
+  &= v\,(s - r\,d)\,P \\
+  &= e^{-1}\,(k\,e)\,P = k\,P.
+\end{aligned}
+$$
+
+Por lo tanto $x_C = x_{kP}$, y como el emisor definió $r = x_{kP} \bmod q$, se cumple $R = r$ únicamente cuando la firma proviene de la clave privada legítima. Cualquier alteración de $M$ cambia $e$, y cualquier alteración de $(r,s)$ rompe esta igualdad, produciendo un punto $C$ distinto y $R \neq r$.
+
+\subsubsection{Implementación}
+
+El verificador se implementó como la clase \texttt{GostVerifier}, que cumple la interfaz \texttt{SignatureVerifier}. Toda la aritmética de puntos delega en la clase centralizada \texttt{CurveMath} (\texttt{add} y \texttt{multiply}), de modo que la verificación no reimplementa la suma ni la multiplicación escalar y reutiliza el mismo motor que el resto del proyecto. El inverso modular se resuelve con \texttt{BigInteger.modInverse}, que internamente aplica el Algoritmo Extendido de Euclides.
+
+\begin{lstlisting}[language=Java, caption={Método \texttt{verify} de la clase \texttt{GostVerifier}: los siete pasos del Algoritmo II.}]
+public boolean verify(Signature sig, BigInteger e, Point Q, DomainParameters params) {
+    BigInteger q = params.q;
+    BigInteger r = sig.r;
+    BigInteger s = sig.s;
+
+    // Paso 1: r, s deben estar en (0, q)
+    if (r.signum() <= 0 || r.compareTo(q) >= 0) return false;
+    if (s.signum() <= 0 || s.compareTo(q) >= 0) return false;
+
+    // Paso 2: e = h mod q; si es 0 se fuerza a 1
+    e = e.mod(q);
+    if (e.signum() == 0) e = BigInteger.ONE;
+
+    // Paso 3: v = e^-1 mod q
+    BigInteger v = e.modInverse(q);
+
+    // Paso 4: z1 = s*v mod q, z2 = -r*v mod q
+    BigInteger z1 = s.multiply(v).mod(q);
+    BigInteger z2 = r.negate().multiply(v).mod(q);
+
+    // Paso 5: C = z1*P + z2*Q
+    Point C = CurveMath.add(
+        CurveMath.multiply(params.P, z1, params),
+        CurveMath.multiply(Q, z2, params),
+        params
+    );
+
+    // Paso 6: R = x_C mod q
+    BigInteger R = C.x.mod(q);
+
+    // Paso 7: valida si R == r
+    return R.equals(r);
+}
+\end{lstlisting}
+
+\subsubsection{Validación}
+
+La correctitud se aseguró siguiendo TDD: los casos de prueba se escribieron antes que la implementación, usando los vectores oficiales del Apéndice~A.1 del estándar (curva de 256 bits). Se cubrieron dos escenarios complementarios:
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{@{}lll@{}}
+        \toprule
+        \textbf{Caso de prueba} & \textbf{Entrada} & \textbf{Resultado esperado} \\
+        \midrule
+        Firma legítima           & $(r, s)$ del vector A.1                 & Válida \\
+        Firma con $r$ alterado    & $r$ con un bit modificado               & Inválida \\
+        \bottomrule
+    \end{tabular}
+    \caption{Casos de prueba del verificador sobre los vectores oficiales del Apéndice A.1.}
+    \label{tab:tests_verificador}
+\end{table}
+
+El primer caso confirma que una firma producida por el emisor con la clave privada correcta supera la verificación. El segundo confirma la sensibilidad ante manipulación: basta alterar un único bit de $r$ para que el punto reconstruido $C$ deje de coincidir y la firma se rechace. Ambas pruebas pasan satisfactoriamente (\texttt{BUILD SUCCESS}, 2/2), validando que la reconstrucción del punto y el inverso modular operan conforme al estándar.

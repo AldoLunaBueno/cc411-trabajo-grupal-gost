@@ -1,0 +1,123 @@
+\documentclass[a4paper,12pt,titlepage]{article}
+
+% Paquetes para soporte de idioma y codificación
+
+\usepackage{lmodern}
+\usepackage[spanish,es-tabla]{babel}
+
+% Paquetes para representar símbolos matemáticos
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+\usepackage{amsthm}
+\usepackage{mathtools}
+
+% Paquetes gráficos y de diagramas
+\usepackage{tikz}
+\usetikzlibrary{shapes, arrows, arrows.meta, positioning, calc}
+% Configuración de estilos corregida
+\tikzset{
+    startstop/.style={draw, rectangle, rounded corners, minimum width=3cm, minimum height=1cm, text centered, align=center, line width=1pt, fill=blue!10},
+    process/.style={draw, rectangle, minimum width=3.5cm, minimum height=1cm, text centered, align=center, fill=orange!10},
+    decision/.style={draw, diamond, aspect=1.5, minimum width=3.5cm, minimum height=1cm, text centered, align=center, fill=green!10},
+    arrow/.style={thick, ->, >=Stealth}
+}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+
+% Paquete para listados de código fuente
+\usepackage{listings}
+\usepackage{xcolor}
+
+% Configuración estética para los fragmentos de código Java/pseudocódigo
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.96,0.96,0.94}
+
+\lstset{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{blue}\bfseries,
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\small,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=4,
+    frame=single,
+    rulecolor=\color{gray!30}
+}
+
+% Paquetes de formato de página y tablas
+\usepackage{booktabs}
+\usepackage{geometry}
+\geometry{left=3cm,right=2cm,top=2cm,bottom=2cm}
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=cyan,
+    pdftitle={Análisis de seguridad e implementación algorítmica de GOST R 34.10},
+    pdfpagemode=FullScreen,
+}
+
+% Definición de entornos matemáticos estructurados
+\newtheorem{theorem}{Teorema}[section]
+\newtheorem{definition}{Definición}[section]
+\newtheorem{property}{Propiedad}[section]
+
+\begin{document}
+
+% --- PORTADA ---
+\begin{titlepage}
+    \centering
+    \vspace*{2cm}
+    {\Huge\bfseries Análisis de seguridad e implementación algorítmica del estándar criptográfico ruso de firmas digitales GOST R 34.10\par}
+    
+    \vspace{3.5cm}
+{\Large\bfseries Integrantes:\par}
+\vspace{0.5cm}
+{\large 
+\begin{tabular}{l @{\hspace{1.5cm}} l}
+    Aldo Luna Bueno & 20170325B \\
+    Joel Benjamín Seminario Serna & 20210056G \\
+    Jharvy Jonas Cadillo Tarazona & 20210184E \\
+    Melissa Iman Noriega & 20224041G \\
+    Luis Alberto Alanya Campos & 20210290J
+    
+\end{tabular}\par}
+    
+    \vspace{3.5cm}
+    {\Large Universidad Nacional de Ingeniería\par}
+    \vspace{0.2cm}
+    {\large Escuela Profesional de Ciencia de la Computación\par}
+    \vfill
+    {\large \today \par}
+\end{titlepage}
+
+\input{secciones/1_introduccion}
+\input{secciones/2_fundamentos_teoricos}
+\input{secciones/3_metodologia_desarrollo}
+\input{secciones/4_implementacion_algoritmica}
+\input{secciones/5_analisis_seguridad}
+\input{secciones/6_conclusiones}
+\input{secciones/7_referencias_bibliograficas}
+
+\appendix
+\input{anexos/anexo_a_main_orquestador}
+\input{anexos/anexo_b_curvemath}
+\input{anexos/anexo_c_modulos_core}
+\input{anexos/anexo_d_logs_ejecucion}
+
+\end{document}

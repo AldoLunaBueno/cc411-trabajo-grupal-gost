@@ -1,0 +1,67 @@
+\section{Metodología de Desarrollo e Integración}
+
+El desarrollo de software criptográfico impone requisitos críticos de exactitud matemática y seguridad en la gestión de memoria. Un mínimo error en la manipulación de bits o en la aritmética modular puede resultar en vulnerabilidades catastróficas. Por ello, este proyecto descartó el desarrollo empírico tradicional en favor de una metodología orientada a la verificación continua y la segregación arquitectónica.
+
+\subsection{Arquitectura Orientada a Interfaces}
+Para permitir el desarrollo en paralelo y mitigar los bloqueos entre los miembros del equipo, el sistema se diseñó bajo el principio de Segregación de Interfaces (SOLID). Se definieron contratos estrictos (\textit{interfaces} en Java) para los tres componentes principales del estándar: el módulo de \textit{hashing} criptográfico (\texttt{HashService}), la generación de firmas (\texttt{SignatureGenerator}) y la verificación de firmas (\texttt{SignatureVerifier}). 
+
+Esta abstracción garantizó que cada módulo interactuara con los demás únicamente a través de tipos de datos puros y Objetos de Transferencia de Datos (DTOs), eliminando dependencias circulares y facilitando el aislamiento necesario para las pruebas de calidad.
+
+\subsection{Desarrollo Guiado por Pruebas (TDD) con JUnit 5}
+La piedra angular de la metodología del proyecto fue la adopción estricta del Desarrollo Guiado por Pruebas (TDD, por sus siglas en inglés). En lugar de programar la lógica del estándar y probarla al final, se codificaron primero las pruebas unitarias utilizando el marco de trabajo JUnit 5. 
+
+El marco de aserción se construyó extrayendo los vectores de prueba oficiales (entradas estáticas y sus salidas matemáticas esperadas) publicados en los apéndices de los documentos GOST R 34.10-2012 y RFC 6986. De esta forma, el código de implementación se consideraba completo única y exclusivamente cuando lograba satisfacer las aserciones estandarizadas.
+
+Para asegurar la legibilidad y mantenibilidad del conjunto de pruebas, cada test unitario se estructuró siguiendo el patrón \textbf{AAA (Arrange, Act, Assert)}:
+\begin{itemize}
+    \item \textbf{Arrange (Preparar):} Se inicializan los objetos, se configuran las dependencias y se declaran las constantes estáticas (vectores de prueba) extraídas del estándar.
+    \item \textbf{Act (Ejecutar):} Se invoca el método principal del componente criptográfico.
+    \item \textbf{Assert (Afirmar):} Se evalúa si el resultado de la ejecución coincide exactamente con el vector de control.
+\end{itemize}
+
+El siguiente fragmento de código ilustra la aplicación del patrón AAA en la validación del flujo completo del Emisor (Algoritmo I). Para lograr una prueba determinista y replicable, se utilizó una sobrecarga del método que permite inyectar el número aleatorio efímero ($k$), evaluando así el ``camino feliz'' contra los valores exactos del Apéndice A.1:
+
+\begin{lstlisting}[language=Java, caption={Prueba unitaria del Emisor estructurada bajo el patrón AAA (cadenas hexadecimales truncadas por brevedad)}, label={lst:aaa_pattern}]
+@Test
+public void testSignWithAppendixA1Vectors() {
+    // 1. Arrange (Preparar)
+    // Configuracion de parametros de dominio (256 bits)
+    BigInteger p = new BigInteger("80000000...0431", 16);
+    BigInteger a = new BigInteger("7", 16);
+    BigInteger b = new BigInteger("5FBFF498...3B7E", 16);
+    BigInteger q = new BigInteger("80000000...F5B3", 16);
+    Point P = new Point(
+        new BigInteger("2", 16),
+        new BigInteger("8E2A8A0E...E8FC8", 16)
+    );
+    DomainParameters params = new DomainParameters(p, a, b, q, P);
+
+    // Entradas estaticas del documento oficial
+    BigInteger e = new BigInteger("2DFBC1B3...3EE5", 16); // Hash
+    BigInteger d = new BigInteger("7A929ADE...3B28", 16); // Clave privada
+    BigInteger k = new BigInteger("77105C9B...EAB3", 16); // Nonce determinista
+
+    // Valores esperados de la firma
+    BigInteger expectedR = new BigInteger("41AA28D2...0493", 16);
+    BigInteger expectedS = new BigInteger("1456C64B...9C40", 16);
+
+    // 2. Act (Ejecutar)
+    Signature firma = signer.sign(e, d, k, params);
+
+    // 3. Assert (Afirmar)
+    assertEquals(expectedR, firma.r, "Fallo en R (C = kP)");
+    assertEquals(expectedS, firma.s, "Fallo en S (s = (rd + ke) mod q)");
+}
+\end{lstlisting}
+
+Este enfoque de pruebas permitió validar la exactitud de las implementaciones abstractas, asegurando que cualquier desviación en el cálculo modular o en la multiplicación escalar sobre la curva elíptica fuese detectada de manera inmediata antes de la fase de integración final.
+
+\subsection{Gestión de la Precisión Arbitraria y Convenciones de Memoria}
+El estándar GOST exige realizar operaciones algebraicas sobre cuerpos finitos utilizando números de 256 y 512 bits. Dado que los tipos de datos primitivos de Java (como \texttt{long}) están limitados a 64 bits, la arquitectura base se cimentó íntegramente sobre la clase nativa \texttt{java.math.BigInteger}. Esta decisión eliminó el riesgo de desbordamientos aritméticos (\textit{overflows}) y proporcionó rutinas optimizadas para operaciones fundamentales como la multiplicación modular y el cálculo de inversos multiplicativos.
+
+Adicionalmente, se desarrolló una utilidad centralizada (\texttt{GostUtils}) para gobernar el ordenamiento de bytes. Puesto que los estándares criptográficos rusos imponen el formato \textit{Little-Endian} para la representación de vectores en memoria, mientras que la Máquina Virtual de Java (JVM) opera por defecto en \textit{Big-Endian}, esta abstracción centralizada previno inconsistencias sistémicas durante el intercambio de datos entre la función Hash, el Emisor y el Receptor.
+
+\subsection{Gestión de la Precisión Arbitraria y Convenciones de Memoria}
+El estándar GOST exige realizar operaciones algebraicas sobre cuerpos finitos utilizando números de 256 y 512 bits. Dado que los tipos de datos primitivos de Java (como \texttt{long}) están limitados a 64 bits, la arquitectura base se cimentó íntegramente sobre la clase nativa \texttt{java.math.BigInteger}. Esta decisión eliminó el riesgo de desbordamientos aritméticos (\textit{overflows}) y proporcionó rutinas optimizadas para operaciones fundamentales como la multiplicación modular y el cálculo de inversos multiplicativos.
+
+Adicionalmente, se desarrolló una utilidad centralizada (\texttt{GostUtils}) para gobernar el ordenamiento de bytes. Puesto que los estándares criptográficos rusos imponen el formato \textit{Little-Endian} para la representación de vectores en memoria, mientras que la Máquina Virtual de Java (JVM) opera por defecto en \textit{Big-Endian}, esta abstracción centralizada previno inconsistencias sistémicas durante el intercambio de datos entre la función Hash, el Emisor y el Receptor.

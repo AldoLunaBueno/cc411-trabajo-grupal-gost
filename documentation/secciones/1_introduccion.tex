@@ -1,0 +1,28 @@
+\section{Introducción}
+
+\subsection{Contexto y motivación}
+La firma digital asegura tres principios: la integridad del mensaje, la autenticidad del emisor y el no repudio. Algoritmos como RSA dominaron este campo en el pasado, pero la Criptografía de Curvas Elípticas es el estándar moderno debido a su capacidad de ofrecer niveles de seguridad equivalentes con tamaños de clave drásticamente menores, lo que optimiza el rendimiento computacional y el ancho de banda.
+
+Las naciones y bloques han desarrollado sus propios estándares para garantizar la soberanía de sus comunicaciones. Mientras que Occidente ha estandarizado mayoritariamente ECDSA (del instituto NIST), la Federación Rusa emplea el estándar GOST R 34.10-2012. El estudio e implementación de estándares alternativos no solo amplía la perspectiva técnica sobre las decisiones de diseño criptográfico, sino que permite comprender las sutilezas matemáticas de las curvas de Weierstrass bajo diferentes dominios de parámetros.
+
+Al adoptar una metodología de Desarrollo Guiado por Pruebas (TDD) y una arquitectura modular orientada a interfaces en Java, este trabajo busca demostrar que las matemáticas abstractas de los cuerpos finitos pueden traducirse en sistemas de software robustos, verificables y resistentes a vulnerabilidades de implementación.
+
+\subsection{Objetivos del proyecto}
+
+\textbf{Objetivo General:} \\
+Analizar, diseñar e implementar desde cero el estándar de firma digital electrónica GOST R 34.10-2012, junto con su función hash criptográfica asociada GOST R 34.11-2012 (Streebog), garantizando la exactitud matemática y la seguridad algorítmica mediante pruebas unitarias rigurosas.
+
+\vspace{0.3cm}
+\noindent\textbf{Objetivos Específicos:}
+\begin{itemize}
+    \item \textbf{Modelamiento Matemático:} Desarrollar un motor algebraico seguro para operaciones sobre curvas elípticas en el cuerpo finito $\mathbb{F}_p$, implementando la suma de puntos, duplicación y multiplicación escalar (Double-and-Add), con mitigaciones integradas contra ataques de curva inválida.
+    \item \textbf{Implementación de Función Hash:} Codificar el algoritmo de compresión criptográfica Streebog, asegurando el correcto procesamiento de la memoria bajo restricciones Little-Endian y el cumplimiento de las reglas modulares del estándar.
+    \item \textbf{Desarrollo del Protocolo de Firma:} Construir de manera desacoplada los módulos del Emisor (Algoritmo I - Generación de firma) y del Receptor (Algoritmo II - Verificación de firma), manejando correctamente los inversos modulares y la entropía criptográfica ($k$).
+    \item \textbf{Validación y Calidad de Software:} Comprobar la exactitud de cada componente mediante la automatización de pruebas unitarias (JUnit) inyectando los vectores de control estandarizados en los apéndices oficiales (RFC 6986 y GOST).
+    \item \textbf{Evaluación de Seguridad:} Analizar las vulnerabilidades inherentes a una mala implementación del estándar y establecer un marco comparativo a nivel arquitectónico y de seguridad entre GOST R 34.10 y ECDSA.
+\end{itemize}
+
+\subsection{Organización del documento}
+El presente informe está estructurado para guiar al lector desde los fundamentos teóricos hasta la ejecución y análisis del código fuente. En el Capítulo 2, se expone el marco teórico, abarcando la matemática de las curvas elípticas sobre cuerpos finitos y los conceptos de firma digital. El Capítulo 3 detalla la justificación metodológica, explicando la arquitectura del sistema, la separación de responsabilidades a través de interfaces y el enfoque TDD.
+
+En el Capítulo 4, se documenta el núcleo del trabajo: la implementación algorítmica detallada de la función Hash Streebog, y los procesos de generación y verificación de la firma. El Capítulo 5 profundiza en la ciberseguridad, analizando las estrategias de mitigación de ataques programadas en el código y ofreciendo una comparativa analítica frente a otros estándares globales. Finalmente, el Capítulo 6 expone las conclusiones del proyecto, seguido de las referencias bibliográficas y los anexos que contienen el código fuente fundamental.

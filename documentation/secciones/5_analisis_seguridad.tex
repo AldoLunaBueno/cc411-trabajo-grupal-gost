@@ -1,0 +1,33 @@
+\section{Análisis de Seguridad y Comparativa}
+
+Como parte de este estudio, nos toca hablar sobre qué tan seguro es realmente el estándar ruso GOST R 34.10 y cómo se le para enfrente al ya conocido ECDSA occidental que vemos por todos lados.
+
+\subsection{Fortaleza matemática y análisis de seguridad}
+
+Lo primero que hay que entender es que toda la seguridad del algoritmo GOST R 34.10--2012 recae sobre la dificultad del \textbf{Problema del Logaritmo Discreto en Curvas Elípticas (ECDLP)}. En español: aunque un atacante sepa qué curva estás usando (los parámetros $p, a, b, q$), conozca el punto generador $P$ y tu clave pública $Q$, averiguar tu clave privada $d$ requeriría resolver la ecuación $Q = d \times P$. Con los tamaños de clave actuales (256 o 512 bits) sobre cuerpos finitos, las computadoras más potentes de hoy en día tardarían miles o millones de años en resolverlo usando algoritmos conocidos (como Pollard’s rho o Baby-step giant-step).
+
+Un punto fuerte a destacar aquí, especialmente en la forma en la que se calcula la firma, es la protección inherente contra los famosos \textit{timing attacks} (ataques de tiempo). Cuando generamos nuestro par de firma $(r, s)$ en el estándar GOST, la ecuación para $s$ es:
+$$ s = (r \cdot d + k \cdot e) \pmod q $$
+donde $d$ es la clave privada, $k$ es el número aleatorio efímero, y $e$ es el hash del mensaje convertido. 
+Si lo analizamos bien, el algoritmo emisor del GOST \textbf{no requiere calcular el inverso modular del número aleatorio $k$} en la firma. Calcular un inverso modular es una operación matemáticamente "pesada" y su tiempo de ejecución puede variar mucho, lo que a menudo "filtra" información en implementaciones no cuidadosas. Que GOST lo omita del lado del emisor es un plus enorme para la seguridad en dispositivos limitados (como smart cards).
+
+Además, el algoritmo está casado con la función hash rusa \textbf{Streebog} (GOST R 34.11-2012), la cual está diseñada para ser ultra resistente a ataques de colisión y de preimagen, superando en algunos análisis estructurales a las familias SHA convencionales gracias a su esquema basado en la red de sustitución y permutación (tipo AES/Kuznyechik).
+
+\subsection{Comparativa técnica directa: GOST vs. ECDSA}
+
+Aunque ambos estándares son "primos" porque operan bajo criptografía de curvas elípticas, tienen diferencias técnicas e ideológicas muy marcadas que son muy interesantes de ver en conjunto:
+
+\begin{itemize}
+    \item \textbf{Cálculo de la firma (Eficiencia):} \\
+    En el estándar americano (ECDSA), generar $s$ requiere resolver: 
+    $$s = k^{-1}(e + r \cdot d) \pmod n$$
+    Como mencionamos, esto obliga al dispositivo del emisor a procesar un inverso modular ($k^{-1}$). En GOST, el emisor se libra de esta carga, trasladando la necesidad aritmética "fuerte" al receptor durante la verificación (quien normalmente tiene más poder de cómputo, por ejemplo, un servidor).
+
+    \item \textbf{Las familias de familias de curvas:} \\
+    ECDSA se suele utilizar con las curvas estándar del NIST (como la P-256). Durante años ha existido el debate y la sospecha en la comunidad criptográfica de que estas curvas podrían tener debilidades o "backdoors" introducidas a propósito por agencias de Estados Unidos. GOST utiliza sus propios conjuntos de los parámetros (como \texttt{id-tc26-gost-3410-2012-256}), lo cual le da a los gobiernos e instituciones que desconfían del NIST una alternativa matemáticamente robusta y libre de supuestas injerencias occidentales.
+
+    \item \textbf{El manejo del Hash (Endianness):} \\
+    Algo súper peculiar que notamos al implementar GOST (y especialmente la conexión con Streebog) es cómo manejan el formato numérico del hash. Mientras que ECDSA / SHA procesan sus bloques y salidas en formato \textit{Big-Endian}, Streebog y GOST operan estrictamente en \textit{Little-Endian}. Desde el punto de vista del desarrollo, esto requiere un módulo de transformación adicional para acomodar los bytes de Streebog antes de someterlos a las ecuaciones matemáticas en la curva, algo que ECDSA nos ahorra.
+\end{itemize}
+
+En conclusión, GOST R 34.10 no tiene absolutamente nada de desventaja frente a ECDSA. De hecho, su diseño asimétrico en cuanto a la carga computacional (hacerle la vida fácil al que firma y más compleja al que verifica) lo hace brillante en arquitecturas donde el cliente tiene poca memoria y procesamiento.

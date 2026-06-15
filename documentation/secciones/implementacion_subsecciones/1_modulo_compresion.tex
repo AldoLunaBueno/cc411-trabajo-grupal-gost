@@ -1,0 +1,64 @@
+\subsection{Módulo de Compresión Criptográfica (Streebog)}
+
+La primera etapa del proceso de firma digital consiste en transformar el mensaje original en un resumen criptográfico de longitud fija. Para ello se implementó el algoritmo Streebog, definido por el estándar ruso GOST R 34.11-2012, cuya función principal es producir una representación compacta del mensaje preservando las propiedades fundamentales de integridad, resistencia a colisiones y resistencia a ataques de preimagen.
+
+Dentro de la arquitectura desarrollada, el módulo Streebog actúa como punto de entrada del flujo criptográfico. Antes de que el algoritmo de firma pueda operar sobre el mensaje, este debe ser procesado por la función hash para obtener un valor numérico de tamaño controlado. Esta estrategia evita que el algoritmo de firma trabaje directamente sobre mensajes de longitud arbitraria y permite que todo el procesamiento posterior se realice sobre estructuras matemáticas compatibles con los grupos definidos por la curva elíptica.
+
+La implementación fue diseñada para soportar las dos variantes oficiales del estándar: Streebog-256 y Streebog-512. Ambas versiones comparten la misma estructura interna de compresión, diferenciándose únicamente en el tamaño del resumen producido. La selección de la variante se realiza mediante un parámetro configurable durante la creación de la instancia del servicio de hashing.
+
+Una de las consideraciones más importantes durante el desarrollo fue el manejo correcto del ordenamiento de bytes. A diferencia de muchos estándares occidentales que emplean representaciones Big-Endian, los estándares criptográficos rusos utilizan de forma predominante la representación Little-Endian. Esta diferencia puede generar errores sutiles durante la conversión de datos binarios a enteros arbitrariamente grandes. Para evitar inconsistencias se desarrolló una utilidad centralizada encargada de realizar las transformaciones de endianness requeridas por el estándar.
+
+Una vez obtenido el resumen criptográfico, el estándar GOST R 34.10 exige convertir dicho valor a un entero positivo denominado $e$. Este entero será posteriormente utilizado durante la generación y verificación de firmas digitales. El procedimiento consta de tres etapas:
+
+\begin{enumerate}
+    \item Interpretar el hash como un entero positivo utilizando la convención Little-Endian.
+    \item Aplicar una reducción módulo $q$, donde $q$ representa el orden del subgrupo criptográfico utilizado por la curva elíptica.
+    \item Aplicar la regla especial del estándar que establece que si el resultado es cero, entonces debe reemplazarse por el valor uno.
+\end{enumerate}
+
+Matemáticamente:
+
+\[
+\alpha = \text{LittleEndianToInteger}(Hash)
+\]
+
+\[
+e = \alpha \bmod q
+\]
+
+y si
+
+\[
+e = 0
+\]
+
+entonces
+
+\[
+e = 1
+\]
+
+La implementación desarrollada para este procedimiento se muestra a continuación.
+
+\begin{lstlisting}[language=Java, caption={Conversión del hash Streebog al entero utilizado por GOST.}]
+public BigInteger formatToGostInteger(byte[] rawHashBytes,
+                                      BigInteger q) {
+
+    BigInteger alpha =
+        GostUtils.fromLittleEndianBytes(rawHashBytes);
+
+    BigInteger e = alpha.mod(q);
+
+    if (e.equals(BigInteger.ZERO)) {
+        e = BigInteger.ONE;
+    }
+
+    return e;
+}
+\end{lstlisting}
+
+Con el objetivo de garantizar la exactitud de la implementación se desarrolló una batería de pruebas unitarias utilizando JUnit 5. Las pruebas fueron construidas siguiendo el enfoque TDD y empleando vectores de prueba obtenidos del RFC 6986, documento que define formalmente el algoritmo Streebog y proporciona ejemplos oficiales de referencia.
+
+Las pruebas realizadas verifican tres aspectos fundamentales: la correcta interpretación Little-Endian de los vectores binarios, la reducción modular respecto al orden del subgrupo criptográfico y la aplicación de la regla excepcional para el caso $e=0$. Adicionalmente, se contrastaron los resultados obtenidos contra los valores esperados definidos en los vectores oficiales del estándar.
+
+La validación exitosa de estas pruebas permitió asegurar que el módulo de hashing genera entradas matemáticamente válidas para los algoritmos posteriores de generación y verificación de firmas, garantizando así la interoperabilidad entre todos los componentes del sistema criptográfico implementado.

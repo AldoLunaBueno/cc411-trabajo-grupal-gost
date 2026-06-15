@@ -1,0 +1,209 @@
+\section{Implementación de los Módulos Criptográficos Centrales}
+\label{anexo:modulos_core}
+
+En este anexo se detalla el código fuente de los tres módulos principales del sistema, diseñados bajo el principio de Segregación de Interfaces. Esta arquitectura permite que la lógica de \textit{hashing}, generación de firmas y validación operen de forma aislada, garantizando que las dependencias fluyan hacia las abstracciones.
+
+\subsection{Módulo de Hashing (Streebog)}
+El servicio de \textit{hashing} define un contrato simple para procesar arreglos de bytes. La implementación \texttt{Streebog} aplica el estándar GOST R 34.11-2012 (con salida de 512 bits), encargado de reducir el mensaje a un valor numérico manejable por la curva elíptica.
+
+\begin{lstlisting}[language=Java, caption={Clase Streebog para la reducción criptográfica del mensaje}]
+package uni.modules.hash;
+
+import java.math.BigInteger;
+
+import org.bouncycastle.crypto.Digest;
+import org.bouncycastle.crypto.digests.GOST3411_2012_256Digest;
+import org.bouncycastle.crypto.digests.GOST3411_2012_512Digest;
+
+import uni.utils.GostUtils;
+
+public class Streebog implements HashService {
+
+    private final int bitLength;
+
+    public Streebog(int bitLength) {
+        if (bitLength != 256 && bitLength != 512) {
+            throw new IllegalArgumentException("El estándar Streebog solo soporta 256 o 512 bits");
+        }
+        this.bitLength = bitLength;
+    }
+
+    @Override
+    public BigInteger computeHashInteger(byte[] message, BigInteger q) {
+        byte[] rawHashBytes = computeRawHash(message, this.bitLength);
+
+        // computeRawHash devuelve el hash en el orden esperado por los tests.
+        // Para convertirlo a entero GOST, se pasa en little-endian.
+        return formatToGostInteger(GostUtils.reverseBytes(rawHashBytes), q);
+    }
+
+    public byte[] computeRawHash(byte[] message, int bitLength) {
+        if (message == null) {
+            throw new IllegalArgumentException("message no puede ser null");
+        }
+
+        Digest digest;
+        if (bitLength == 256) {
+            digest = new GOST3411_2012_256Digest();
+        } else {
+            digest = new GOST3411_2012_512Digest();
+        }
+
+        // Normalización de bytes para coincidir con los vectores RFC del proyecto
+        byte[] normalizedInput = GostUtils.reverseBytes(message);
+        digest.update(normalizedInput, 0, normalizedInput.length);
+
+        byte[] output = new byte[digest.getDigestSize()];
+        digest.doFinal(output, 0);
+
+        // Se devuelve en el orden esperado por los tests
+        return GostUtils.reverseBytes(output);
+    }
+
+    public BigInteger formatToGostInteger(byte[] rawHashBytes, BigInteger q) {
+        BigInteger alpha = GostUtils.fromLittleEndianBytes(rawHashBytes);
+
+        BigInteger e = alpha.mod(q);
+        if (e.equals(BigInteger.ZERO)) {
+            e = BigInteger.ONE;
+        }
+
+        return e;
+    }
+}
+\end{lstlisting}
+
+\subsection{Módulo Emisor (Generador de Firma)}
+El componente encargado de emitir la firma implementa la lógica algorítmica de GOST R 34.10, asegurando que los valores temporales aleatorios ($k$) y los componentes de la firma ($r$, $s$) se calculen bajo el módulo $q$.
+
+Primero tenemos una interface que implementa un método por defecto muy sencillo que usa por debajo la implementación de un método determinista. Primero la interface:
+
+\begin{lstlisting}[language=Java, caption={Interface SignatureGenerator y su método por defecto}]
+package uni.modules.emisor;
+
+import java.math.BigInteger;
+import uni.model.Signature;
+import uni.model.DomainParameters;
+import java.security.SecureRandom;
+
+public interface SignatureGenerator {
+
+    /**
+     * Método determinista.
+     * Recibe 'k' como parámetro para hacer pruebas.
+     * Genera la firma (r, s) dado el mensaje (ya como entero e) y la clave privada d.
+     */
+    Signature sign(BigInteger e, BigInteger d, BigInteger k, DomainParameters params);
+
+    /**
+     * Implementación por defecto
+     * Genera su propio 'k' y delega el trabajo matemático al método determinista de arriba.
+     */
+    default Signature sign(BigInteger e, BigInteger d, DomainParameters params) {
+        SecureRandom random = new SecureRandom();
+        BigInteger k;
+        
+        // El estándar exige que k sea un entero aleatorio tal que 0 < k < q
+        do {
+            k = new BigInteger(params.q.bitLength(), random);
+        } while (k.compareTo(BigInteger.ZERO) <= 0 || k.compareTo(params.q) >= 0);
+        
+        // Delega la ejecución a la implementación determninista
+        return sign(e, d, k, params);
+    }
+}
+\end{lstlisting}
+
+Ahora la implementación del método determinista:
+
+\begin{lstlisting}[language=Java, caption={Implementación de GostSigner y su contrato para la emisión}]
+package uni.modules.emisor;
+
+import java.math.BigInteger;
+
+import uni.model.CurveMath;
+import uni.model.Point;
+import uni.model.DomainParameters;
+import uni.model.Signature;
+
+// Jharvy
+public class GostSigner implements SignatureGenerator {
+    @Override
+    public Signature sign(BigInteger e, BigInteger d, BigInteger k, DomainParameters params) {
+        BigInteger q = params.q;
+
+        // Paso 1: e ya viene como entero reducido por el hash
+        // Aseguramos que e esté en el rango [0, q)
+        e = e.mod(q);
+        if (e.signum() == 0) e = BigInteger.ONE;
+
+        // Paso 2: C = k * P
+        Point C = CurveMath.multiply(params.P, k, params);
+        if (C == null) throw new IllegalStateException("Punto C es el infinito (multiplicación fallida)");
+
+        // Paso 3: r = x_C mod q
+        BigInteger r = C.x.mod(q);
+        if (r.signum() == 0) throw new IllegalStateException("Valor r == 0; elegir otro k");
+
+        // Paso 4: s = (r*d + k*e) mod q
+        BigInteger s = r.multiply(d).add(k.multiply(e)).mod(q);
+        if (s.signum() == 0) throw new IllegalStateException("Valor s == 0; elegir otro k");
+
+        // Paso 5: retornar la firma (r, s)
+        return new Signature(r, s);
+    }
+}
+\end{lstlisting}
+
+\subsection{Módulo Receptor (Verificador de Firma)}
+Este módulo recibe la firma $(r, s)$, la llave pública del emisor y el hash del mensaje original. Su función es estrictamente matemática: verificar que la combinación lineal de los puntos en la curva elíptica reconstruya el componente $r$ original.
+
+\begin{lstlisting}[language=Java, caption={Implementación de GostVerifier para validación estricta}]
+package uni.modules.receptor;
+
+import java.math.BigInteger;
+
+import uni.model.CurveMath;
+import uni.model.DomainParameters;
+import uni.model.Point;
+import uni.model.Signature;
+
+// Melissa
+public class GostVerifier implements SignatureVerifier {
+
+    @Override
+    public boolean verify(Signature sig, BigInteger e, Point Q, DomainParameters params) {
+        BigInteger q = params.q;
+        BigInteger r = sig.r;
+        BigInteger s = sig.s;
+
+        // Paso 1: r, s deben estar en (0, q)
+        if (r.signum() <= 0 || r.compareTo(q) >= 0) return false;
+        if (s.signum() <= 0 || s.compareTo(q) >= 0) return false;
+
+        // Paso 2: e = h mod q; si es 0 se fuerza a 1
+        e = e.mod(q);
+        if (e.signum() == 0) e = BigInteger.ONE;
+
+        // Paso 3: v = e^-1 mod q
+        BigInteger v = e.modInverse(q);
+
+        // Paso 4: z1 = s*v mod q, z2 = -r*v mod q
+        BigInteger z1 = s.multiply(v).mod(q);
+        BigInteger z2 = r.negate().multiply(v).mod(q);
+
+        // Paso 5: C = z1*P + z2*Q
+        Point C = CurveMath.add(
+            CurveMath.multiply(params.P, z1, params),
+            CurveMath.multiply(Q, z2, params),
+            params
+        );
+
+        // Paso 6: R = x_C mod q
+        BigInteger R = C.x.mod(q);
+
+        // Paso 7: válida si R == r
+        return R.equals(r);
+    }
+}
+\end{lstlisting}
