@@ -3,44 +3,35 @@ package uni.modules.emisor;
 import java.math.BigInteger;
 
 import uni.model.CurveMath;
-import uni.model.DomainParameters;
 import uni.model.Point;
+import uni.model.DomainParameters;
 import uni.model.Signature;
 
+// Jharvy
 public class GostSigner implements SignatureGenerator {
-
     @Override
     public Signature sign(BigInteger e, BigInteger d, BigInteger k, DomainParameters params) {
-        if (e == null || d == null || k == null || params == null || params.P == null || params.q == null) {
-            throw new IllegalArgumentException("Parámetros inválidos para la firma");
-        }
-
         BigInteger q = params.q;
 
-        if (k.signum() <= 0 || k.compareTo(q) >= 0) {
-            throw new IllegalArgumentException("k debe cumplir 0 < k < q");
-        }
-
+        // Paso 1: e ya viene como entero reducido por el hash
+        // Aseguramos que e esté en el rango [0, q)
         e = e.mod(q);
-        if (e.equals(BigInteger.ZERO)) {
-            e = BigInteger.ONE;
-        }
+        if (e.signum() == 0) e = BigInteger.ONE;
 
+        // Paso 2: C = k * P
         Point C = CurveMath.multiply(params.P, k, params);
-        if (C == null) {
-            throw new IllegalStateException("No se pudo calcular kP");
-        }
+        if (C == null) throw new IllegalStateException("Punto C es el infinito (multiplicación fallida)");
 
+        // Paso 3: r = x_C mod q
         BigInteger r = C.x.mod(q);
-        if (r.equals(BigInteger.ZERO)) {
-            throw new IllegalArgumentException("r = 0");
-        }
+        if (r.signum() == 0) throw new IllegalStateException("Valor r == 0; elegir otro k");
 
+        // Paso 4: s = (r*d + k*e) mod q
         BigInteger s = r.multiply(d).add(k.multiply(e)).mod(q);
-        if (s.equals(BigInteger.ZERO)) {
-            throw new IllegalArgumentException("s = 0");
-        }
+        if (s.signum() == 0) throw new IllegalStateException("Valor s == 0; elegir otro k");
 
+        // Paso 5: retornar la firma (r, s)
         return new Signature(r, s);
     }
+    
 }
